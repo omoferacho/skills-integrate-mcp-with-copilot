@@ -3,6 +3,81 @@ document.addEventListener("DOMContentLoaded", () => {
   const activitySelect = document.getElementById("activity");
   const signupForm = document.getElementById("signup-form");
   const messageDiv = document.getElementById("message");
+  const authBtn = document.getElementById("auth-btn");
+  const logoutBtn = document.getElementById("logout-btn");
+  const authStatus = document.getElementById("auth-status");
+  const loginModal = document.getElementById("login-modal");
+  const loginForm = document.getElementById("login-form");
+  const loginError = document.getElementById("login-error");
+  const signupContainer = document.getElementById("signup-container");
+
+  let isLoggedIn = false;
+
+  // Check current auth status on load
+  async function checkAuth() {
+    const response = await fetch("/auth/me");
+    const data = await response.json();
+    setAuthState(data.logged_in, data.username);
+  }
+
+  function setAuthState(loggedIn, username) {
+    isLoggedIn = loggedIn;
+    if (loggedIn) {
+      authBtn.classList.add("hidden");
+      authStatus.textContent = `👤 ${username}`;
+      authStatus.classList.remove("hidden");
+      logoutBtn.classList.remove("hidden");
+      signupContainer.classList.remove("hidden");
+    } else {
+      authBtn.classList.remove("hidden");
+      authStatus.classList.add("hidden");
+      logoutBtn.classList.add("hidden");
+      signupContainer.classList.add("hidden");
+    }
+    fetchActivities();
+  }
+
+  // Show login modal
+  authBtn.addEventListener("click", () => {
+    loginModal.classList.remove("hidden");
+    loginError.classList.add("hidden");
+    loginForm.reset();
+  });
+
+  // Hide login modal
+  document.getElementById("cancel-login").addEventListener("click", () => {
+    loginModal.classList.add("hidden");
+  });
+
+  // Close modal on backdrop click
+  loginModal.addEventListener("click", (e) => {
+    if (e.target === loginModal) loginModal.classList.add("hidden");
+  });
+
+  // Handle login form submission
+  loginForm.addEventListener("submit", async (e) => {
+    e.preventDefault();
+    const username = document.getElementById("username").value;
+    const password = document.getElementById("password").value;
+    const response = await fetch(
+      `/auth/login?username=${encodeURIComponent(username)}&password=${encodeURIComponent(password)}`,
+      { method: "POST" }
+    );
+    if (response.ok) {
+      loginModal.classList.add("hidden");
+      setAuthState(true, username);
+    } else {
+      const data = await response.json();
+      loginError.textContent = data.detail || "Login failed";
+      loginError.classList.remove("hidden");
+    }
+  });
+
+  // Handle logout
+  logoutBtn.addEventListener("click", async () => {
+    await fetch("/auth/logout", { method: "POST" });
+    setAuthState(false, null);
+  });
 
   // Function to fetch activities from API
   async function fetchActivities() {
@@ -21,7 +96,7 @@ document.addEventListener("DOMContentLoaded", () => {
         const spotsLeft =
           details.max_participants - details.participants.length;
 
-        // Create participants HTML with delete icons instead of bullet points
+        // Create participants HTML with delete icons only for teachers
         const participantsHTML =
           details.participants.length > 0
             ? `<div class="participants-section">
@@ -30,7 +105,7 @@ document.addEventListener("DOMContentLoaded", () => {
                 ${details.participants
                   .map(
                     (email) =>
-                      `<li><span class="participant-email">${email}</span><button class="delete-btn" data-activity="${name}" data-email="${email}">❌</button></li>`
+                      `<li><span class="participant-email">${email}</span>${isLoggedIn ? `<button class="delete-btn" data-activity="${name}" data-email="${email}">❌</button>` : ""}</li>`
                   )
                   .join("")}
               </ul>
@@ -156,5 +231,5 @@ document.addEventListener("DOMContentLoaded", () => {
   });
 
   // Initialize app
-  fetchActivities();
+  checkAuth();
 });
